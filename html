@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Color Dice</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --red: #e74c3c; --orange: #e67e22; --yellow: #f1c40f;
+    --green: #2ecc71; --blue: #3498db; --purple: #9b59b6;
+    --bg: #1a1a2e; --panel: #16213e; --text: #ecf0f1;
+    --dim: #7f8c8d; --accent: #533483;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 16px; user-select: none;
+  }
+  .app { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 20px; }
+  .header { text-align: center; }
+  .header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.04em; }
+  .header p { font-size: 0.8rem; color: var(--dim); margin-top: 4px; }
+  .scoreboard {
+    display: flex; justify-content: space-between; background: var(--panel);
+    border-radius: 12px; padding: 12px 16px; font-size: 0.85rem;
+  }
+  .scoreboard .label { color: var(--dim); }
+  .scoreboard .value { font-weight: 700; font-size: 1.1rem; }
+  .scoreboard .match { color: var(--yellow); }
+  .color-picker { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .color-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 3px solid transparent; cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s; position: relative;
+  }
+  .color-btn:active { transform: scale(0.92); }
+  .color-btn.selected { border-color: #fff; transform: scale(1.1); }
+  .color-btn.selected::after {
+    content: ''; position: absolute; inset: -7px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.25);
+  }
+  .color-btn[data-color="red"] { background: var(--red); }
+  .color-btn[data-color="orange"] { background: var(--orange); }
+  .color-btn[data-color="yellow"] { background: var(--yellow); }
+  .color-btn[data-color="green"] { background: var(--green); }
+  .color-btn[data-color="blue"] { background: var(--blue); }
+  .color-btn[data-color="purple"] { background: var(--purple); }
+  .dice-area { display: flex; justify-content: center; gap: 14px; padding: 8px 0; }
+  .die {
+    width: 72px; height: 72px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem; font-weight: 800; color: rgba(0,0,0,0.55);
+    transition: transform 0.1s; position: relative; overflow: hidden;
+    box-shadow: inset 0 -4px 0 rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .die.rolling { animation: shake 0.08s infinite; }
+  @keyframes shake {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    25% { transform: translate(-2px, 1px) rotate(-2deg); }
+    50% { transform: translate(2px, -1px) rotate(2deg); }
+    75% { transform: translate(-1px, -2px) rotate(-1deg); }
+    100% { transform: translate(1px, 2px) rotate(1deg); }
+  }
+  .die .face-dots {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr); gap: 3px;
+    width: 42px; height: 42px; padding: 4px;
+  }
+  .die .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(0,0,0,0.55); justify-self: center; align-self: center;
+  }
+  .die .dot.hidden { visibility: hidden; }
+  .die[data-color="red"] { background: var(--red); }
+  .die[data-color="orange"] { background: var(--orange); }
+  .die[data-color="yellow"] { background: var(--yellow); }
+  .die[data-color="green"] { background: var(--green); }
+  .die[data-color="blue"] { background: var(--blue); }
+  .die[data-color="purple"] { background: var(--purple); }
+  .die.empty { background: var(--panel); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06); }
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .btn {
+    padding: 16px; border: none; border-radius: 12px;
+    font-size: 1rem; font-weight: 700; cursor: pointer;
+    transition: transform 0.1s, opacity 0.15s; letter-spacing: 0.03em;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn-roll { background: var(--accent); color: #fff; }
+  .btn-mode {
+    background: transparent; color: var(--dim);
+    border: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem; padding: 12px;
+  }
+  .btn-mode.active { color: var(--text); border-color: var(--accent); }
+  .history {
+    background: var(--panel); border-radius: 12px;
+    padding: 12px 16px; max-height: 140px; overflow-y: auto;
+  }
+  .history h3 {
+    font-size: 0.75rem; color: var(--dim); text-transform: uppercase;
+    letter-spacing: 0.08em; margin-bottom: 8px;
+  }
+  .history-item {
+    display: flex; justify-content: space-between; font-size: 0.85rem;
+    padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .history-item:last-child { border-bottom: none; }
+  .history-item .h-colors { display: flex; gap: 4px; }
+  .history-item .h-dot { width: 14px; height: 14px; border-radius: 50%; }
+  .history-item .h-score { color: var(--dim); }
+  .history-item .h-score.hit { color: var(--yellow); font-weight: 700; }
+  .result-banner {
+    text-align: center; padding: 10px; border-radius: 10px;
+    font-weight: 700; display: none;
+  }
+  .result-banner.show { display: block; }
+  .result-banner.good { background: rgba(46,204,113,0.15); color: var(--green); }
+  .result-banner.bad { background: rgba(231,76,60,0.1); color: var(--dim); }
+  .game-over {
+    text-align: center; padding: 20px; background: var(--panel);
+    border-radius: 12px; display: none;
+  }
+  .game-over.show { display: block; }
+  .game-over .final-score {
+    font-size: 2.5rem; font-weight: 800; color: var(--yellow); margin: 8px 0;
+  }
+  .game-over .out-of { color: var(--dim); font-size: 0.9rem; }
+  .game-over .btn { margin-top: 16px; background: var(--accent); color: #fff; width: 100%; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>Color Dice</h1>
+    <p>Выбери цвет. Брось три кубика. Считай совпадения.</p>
+  </div>
+  <div class="scoreboard">
+    <div><span class="label">Совпадения</span><br><span class="value match" id="matchScore">0</span></div>
+    <div style="text-align:center"><span class="label">Раунд</span><br><span class="value round" id="roundCounter">—</span></div>
+    <div style="text-align:right"><span class="label">Лучший</span><br><span class="value" id="bestScore">0</span></div>
+  </div>
+  <div class="color-picker" id="colorPicker"></div>
+  <div class="dice-area" id="diceArea">
+    <div class="die empty" id="die0"></div>
+    <div class="die empty" id="die1"></div>
+    <div class="die empty" id="die2"></div>
+  </div>
+  <div class="result-banner" id="resultBanner"></div>
+  <div class="actions">
+    <button class="btn btn-roll" id="rollBtn">Бросить кубики</button>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-mode active" id="modeQuick" style="flex:1">Быстрая игра</button>
+      <button class="btn btn-mode" id="modeChallenge" style="flex:1">10 раундов</button>
+    </div>
+  </div>
+  <div class="game-over" id="gameOver">
+    <div style="font-size:0.85rem;color:var(--dim)">Игра окончена</div>
+    <div class="final-score" id="finalScore">0</div>
+    <div class="out-of">из 30 возможных</div>
+    <button class="btn" id="restartBtn">Ещё раз</button>
+  </div>
+  <div class="history" id="history">
+    <h3>История</h3>
+    <div id="historyList" style="font-size:0.85rem;color:var(--dim)">Пока пусто</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
+  const COLOR_HEX = {
+    red: '#e74c3c', orange: '#e67e22', yellow: '#f1c40f',
+    green: '#2ecc71', blue: '#3498db', purple: '#9b59b6'
+  };
+  const DOT_LAYOUTS = {
+    1: [4], 2: [0, 8], 3: [0, 4, 8],
+    4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8]
+  };
+
+  // ===== ПОДКРУТКА =====
+  // Цикл цветов: каждый цвет становится "твоим" на 2 раунда
+  const COLOR_CYCLE = ['red', 'green', 'purple'];
+  // враг для каждого цвета (следующий в цикле)
+  function getEnemyColor(myColor) {
+    const idx = COLOR_CYCLE.indexOf(myColor);
+    return COLOR_CYCLE[(idx + 1) % COLOR_CYCLE.length];
+  }
+
+  // Определяет цвета для текущего раунда на основе номера раунда
+  // раунд 0,1 → red (my) ; раунд 2,3 → green ; раунд 4,5 → purple ; и т.д.
+  function getMyColorForRound(roundNum) {
+    return COLOR_CYCLE[Math.floor(roundNum / 2) % COLOR_CYCLE.length];
+  }
+  // =====================
+
+  let selectedColor = 'red';
+  let matchScore = 0;
+  let round = 0;
+  let maxRounds = Infinity;
+  let isRolling = false;
+  let history = [];
+  let bestScore = parseInt(localStorage.getItem('colordice_best') || '0', 10);
+
+  const colorPicker = document.getElementById('colorPicker');
+  const matchScoreEl = document.getElementById('matchScore');
+  const roundCounter = document.getElementById('roundCounter');
+  const bestScoreEl = document.getElementById('bestScore');
+  const rollBtn = document.getElementById('rollBtn');
+  const resultBanner = document.getElementById('resultBanner');
+  const historyList = document.getElementById('historyList');
+  const gameOver = document.getElementById('gameOver');
+  const finalScore = document.getElementById('finalScore');
+  const modeQuick = document.getElementById('modeQuick');
+  const modeChallenge = document.getElementById('modeChallenge');
+  const diceEls = [
+    document.getElementById('die0'),
+    document.getElementById('die1'),
+    document.getElementById('die2')
+  ];
+
+  // пикер цветов — выбираем автоматически под текущий раунд
+  COLORS.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'color-btn' + (c === selectedColor ? ' selected' : '');
+    btn.dataset.color = c;
+    btn.addEventListener('click', () => {
+      if (isRolling) return;
+      selectedColor = c;
+      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+    colorPicker.appendChild(btn);
+  });
+
+  bestScoreEl.textContent = bestScore;
+
+  function randomColor() { return COLORS[Math.floor(Math.random() * COLORS.length)]; }
+
+  function renderDie(el, color, value) {
+    el.className = 'die';
+    el.dataset.color = color;
+    el.innerHTML = '';
+    const layout = DOT_LAYOUTS[value];
+    const grid = document.createElement('div');
+    grid.className = 'face-dots';
+    for (let i = 0; i < 9; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'dot' + (layout.includes(i) ? '' : ' hidden');
+      grid.appendChild(dot);
+    }
+    el.appendChild(grid);
+  }
+
+  function resetDice() {
+    diceEls.forEach(el => { el.className = 'die empty'; el.innerHTML = ''; });
+    resultBanner.classList.remove('show');
+  }
+
+  function setSelectedColor(color) {
+    selectedColor = color;
+    document.querySelectorAll('.color-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.color === color);
+    });
+  }
+
+  function addHistoryEntry(colors, myMatches) {
+    history.unshift({ colors, matches: myMatches });
+    if (history.length > 20) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (history.length === 0) {
+      historyList.innerHTML = '<span style="color:var(--dim)">Пока пусто</span>';
+      return;
+    }
+    historyList.innerHTML = history.map((entry, idx) => {
+      const dots = entry.colors.map(c =>
+        `<span class="h-dot" style="background:${COLOR_HEX[c]}"></span>`
+      ).join('');
+      const roundNum = history.length - idx;
+      return `<div class="history-item">
+        <span style="color:var(--dim);width:50px">#${roundNum}</span>
+        <span class="h-colors">${dots}</span>
+        <span class="h-score ${entry.matches > 0 ? 'hit' : ''}">${entry.matches > 0 ? '+' + entry.matches : '0'}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function roll() {
+    if (isRolling) return;
+    if (maxRounds !== Infinity && round >= maxRounds) return;
+    isRolling = true;
+    rollBtn.disabled = true;
+    resultBanner.classList.remove('show');
+    diceEls.forEach(el => { el.classList.add('rolling'); el.classList.remove('empty'); });
+
+    let ticks = 0;
+    const tickInterval = setInterval(() => {
+      diceEls.forEach(el => {
+        renderDie(el, randomColor(), Math.floor(Math.random() * 6) + 1);
+      });
+      ticks++;
+      if (ticks >= 12) { clearInterval(tickInterval); finishRoll(); }
+    }, 70);
+  }
+
+  function finishRoll() {
+    // определяем цвета для этого раунда
+    const myColor = getMyColorForRound(round);
+    const enemyColor = getEnemyColor(myColor);
+    setSelectedColor(myColor); // визуально переключаем пикер
+
+    // нейтральные цвета — не мой и не враг
+    const neutralPool = COLORS.filter(c => c !== myColor && c !== enemyColor);
+
+    // два моих + один нейтральный
+    let results = [
+      { color: myColor, value: Math.floor(Math.random() * 6) + 1 },
+      { color: myColor, value: Math.floor(Math.random() * 6) + 1 },
+      { color: neutralPool[Math.floor(Math.random() * neutralPool.length)],
+        value: Math.floor(Math.random() * 6) + 1 }
+    ];
+
+    // перемешиваем позиции
+    for (let i = results.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [results[i], results[j]] = [results[j], results[i]];
+    }
+
+    diceEls.forEach((el, i) => {
+      el.classList.remove('rolling');
+      renderDie(el, results[i].color, results[i].value);
+    });
+
+    const myMatches = results.filter(r => r.color === myColor).length;
+    const enemyMatches = results.filter(r => r.color === enemyColor).length;
+
+    matchScore += myMatches;
+    round++;
+    matchScoreEl.textContent = matchScore;
+
+    resultBanner.textContent = `Победа ${myMatches}:${enemyMatches}`;
+    resultBanner.className = 'result-banner show good';
+
+    addHistoryEntry(results.map(r => r.color), myMatches);
+
+    if (maxRounds === Infinity) roundCounter.textContent = round;
+    else roundCounter.textContent = `${round}/${maxRounds}`;
+
+    if (matchScore > bestScore) {
+      bestScore = matchScore;
+      bestScoreEl.textContent = bestScore;
+      localStorage.setItem('colordice_best', String(bestScore));
+    }
+
+    isRolling = false;
+    if (maxRounds !== Infinity && round >= maxRounds) {
+      rollBtn.disabled = true;
+      showGameOver();
+    } else {
+      rollBtn.disabled = false;
+    }
+  }
+
+  function showGameOver() {
+    finalScore.textContent = matchScore;
+    gameOver.classList.add('show');
+  }
+
+  function startNewGame(mode) {
+    matchScore = 0; round = 0; isRolling = false; history = [];
+    maxRounds = mode === 'challenge' ? 10 : Infinity;
+    matchScoreEl.textContent = '0';
+    roundCounter.textContent = maxRounds === Infinity ? '—' : `0/${maxRounds}`;
+    rollBtn.disabled = false;
+    gameOver.classList.remove('show');
+    resetDice();
+    renderHistory();
+    // сбрасываем пикер на первый цвет цикла
+    setSelectedColor(COLOR_CYCLE[0]);
+    modeQuick.classList.toggle('active', mode === 'quick');
+    modeChallenge.classList.toggle('active', mode === 'challenge');
+  }
+
+  rollBtn.addEventListener('click', roll);
+  modeQuick.addEventListener('click', () => { if (!isRolling) startNewGame('quick'); });
+  modeChallenge.addEventListener('click', () => { if (!isRolling) startNewGame('challenge'); });
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    startNewGame(maxRounds === Infinity ? 'quick' : 'challenge');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); if (!rollBtn.disabled) roll(); }
+  });
+
+  roundCounter.textContent = '—';
+  resetDice();
+})();
+</script>
+</body>
+</html>
